@@ -1,4 +1,8 @@
-# PagePilot
+<div align="center">
+  <img src="images/PagePilot Logo.png" alt="PagePilot Logo" width="200">
+  
+  **The PDF chat app that truly understands text, tables, AND images**
+</div>
 
 A multi-modal RAG (Retrieval-Augmented Generation) application that allows you to upload PDF documents and ask questions about their content. The system can process and understand text, tables, and images within PDFs to provide comprehensive answers.
 

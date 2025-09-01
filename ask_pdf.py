@@ -1,7 +1,6 @@
 from unstructured.partition.pdf import partition_pdf
 import base64
 from IPython.display import Image, display
-from langchain_groq import ChatGroq
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.output_parsers import StrOutputParser
 from langchain_openai import ChatOpenAI
@@ -13,6 +12,7 @@ from dotenv import load_dotenv
 import os
 from langchain_openai import OpenAIEmbeddings
 from langchain_chroma import Chroma
+from langchain_ollama import ChatOllama
 
 load_dotenv()
 
@@ -50,7 +50,7 @@ def summarize_non_image(elements):
 
     """
     prompt = ChatPromptTemplate.from_template(prompt_text)
-    model = ChatGroq(temperature=0.5, model="llama-3.1-8b-instant")
+    model = ChatOllama(temperature=0.5, model="llama3.1:8b")
     summarize_chain = {"element": lambda x: x} | prompt | model | StrOutputParser()
     text_summaries = summarize_chain.batch(elements, {"max_concurrency": 3})
     return text_summaries
@@ -107,42 +107,39 @@ def add_docs(retriever, contents, summaries):
 
     return retriever
 
-if __name__ == "__main__":
-    output_path = "./content/"
-    file_path = output_path + 'attention.pdf'
+def generate_answer(question, docs):
+    """Generate a well-crafted answer based on retrieved documents."""
+    
+    # Format the retrieved documents
+    context = ""
+    for i, doc in enumerate(docs, 1):
+        if hasattr(doc, 'page_content'):
+            context += f"Document {i}:\n{doc.page_content}\n\n"
+        else:
+            context += f"Document {i}:\n{str(doc)}\n\n"
+    
+    prompt_template = """
+    You are an AI assistant that provides accurate and helpful answers based on the given context.
+    
+    Context from PDF documents:
+    {context}
+    
+    Question: {question}
+    
+    Instructions:
+    - Answer the question based ONLY on the provided context
+    - If the context doesn't contain enough information to answer the question, say so clearly
+    - Be concise but comprehensive
+    - Use specific details from the context when available
+    - If there are tables, images, or charts mentioned in the context, reference them appropriately
+    
+    Answer:
+    """
+    
+    prompt = ChatPromptTemplate.from_template(prompt_template)
+    model = ChatOpenAI(model="gpt-4o-mini", temperature=0.1)
+    chain = prompt | model | StrOutputParser()
+    
+    answer = chain.invoke({"context": context, "question": question})
+    return answer
 
-    chunks = partition_pdf(
-        filename=file_path,
-        infer_table_structure=True,            # extract tables
-        strategy="hi_res",                     # mandatory to infer tables
-
-        extract_image_block_types=["Image"],   # Add 'Table' to list to extract image of tables
-        # image_output_dir_path=output_path,   # if None, images and tables will saved in base64
-
-        extract_image_block_to_payload=True,   # if true, will extract base64 for API usage
-
-        chunking_strategy="by_title",          # or 'basic'
-        max_characters=10000,                  # defaults to 500
-        combine_text_under_n_chars=2000,       # defaults to 0
-        new_after_n_chars=6000,
-    )
-
-    texts = []
-    for chunk in chunks:
-        texts.append(chunk)
-    tables = get_tables(chunks)
-    images = get_images_base64(chunks)
-
-    text_summaries = summarize_non_image(texts)
-    table_summaries = summarize_non_image(tables)
-    image_summaries = summarize_image(images)
-
-    retriever = retriever_init()
-    retriever = add_docs(retriever, texts, text_summaries)
-    retriever = add_docs(retriever, tables, table_summaries)
-    retriever = add_docs(retriever, images, image_summaries)
-
-    # test
-    docs = retriever.invoke(
-        "who are the authors of the paper?"
-    )

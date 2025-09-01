@@ -11,6 +11,7 @@ dependencies = [
     "langchain-chroma>=0.2.5",
     "langchain-community>=0.3.29",
     "langchain-groq>=0.3.7",
+    "langchain-ollama>=0.3.7",
     "langchain-openai>=0.3.32",
     "pypdf2>=3.0.1",
     "python-dotenv>=1.1.1",
